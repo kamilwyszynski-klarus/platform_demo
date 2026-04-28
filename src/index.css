@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Klarus Platform — Atmospheric Intelligence design system.
+   All colors HSL. Dark-first. */
+
+@layer base {
+  :root {
+    /* Atmospheric navy-black base (~#050812) */
+    --background: 225 43% 5%;
+    --foreground: 210 40% 98%;
+
+    --card: 225 40% 7%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 225 45% 6%;
+    --popover-foreground: 210 40% 98%;
+
+    /* Klarus deep sage (~#6B8574) */
+    --primary: 140 11% 47%;
+    --primary-foreground: 210 40% 98%;
+    --primary-glow: 140 22% 60%;
+    --primary-deep: 140 14% 32%;
+
+    --secondary: 225 30% 12%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 225 25% 14%;
+    --muted-foreground: 220 15% 65%;
+
+    /* Warm amber as complementary accent */
+    --accent: 35 70% 60%;
+    --accent-foreground: 225 43% 5%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 25% 16%;
+    --input: 220 25% 16%;
+    --ring: 140 22% 60%;
+
+    /* Tile category tints — must not overlap primary sage.
+       Used by sidebar filters and by each tile's hover sheen + status accents. */
+    --category-advisory: 170 14% 55%;
+    --category-technical: 225 28% 64%;
+    --category-agents: 30 49% 64%;
+
+    --radius: 0.75rem;
+
+    /* Signature gradients & shadows */
+    --gradient-atmosphere: radial-gradient(ellipse 80% 60% at 50% 0%, hsl(140 30% 18% / 0.55), transparent 60%),
+                           radial-gradient(ellipse 60% 50% at 80% 100%, hsl(35 50% 25% / 0.25), transparent 60%),
+                           radial-gradient(ellipse 70% 60% at 10% 90%, hsl(260 40% 20% / 0.35), transparent 60%);
+    --gradient-sage: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --shadow-sage: 0 10px 40px -10px hsl(var(--primary) / 0.45), 0 0 0 1px hsl(var(--primary-glow) / 0.2) inset;
+    --shadow-glass: 0 8px 32px -8px hsl(225 50% 2% / 0.6), 0 0 0 1px hsl(220 30% 25% / 0.4) inset;
+
+    --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 225 43% 5%;
+    --foreground: 210 40% 98%;
+    --card: 225 40% 7%;
+    --card-foreground: 210 40% 98%;
+    --popover: 225 45% 6%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 140 11% 47%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 225 30% 12%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 225 25% 14%;
+    --muted-foreground: 220 15% 65%;
+    --accent: 35 70% 60%;
+    --accent-foreground: 225 43% 5%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 220 25% 16%;
+    --input: 220 25% 16%;
+    --ring: 140 22% 60%;
+    --category-advisory: 170 14% 55%;
+    --category-technical: 225 28% 64%;
+    --category-agents: 30 49% 64%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+}
