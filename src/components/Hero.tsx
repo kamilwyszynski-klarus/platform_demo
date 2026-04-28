@@ -1,7 +1,22 @@
 // Typeface: Inter (already loaded via index.html). No new fonts in this iteration.
-import { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { CanvasText } from "@/components/ui/canvas-text";
+import { cn } from "@/lib/utils";
+
+type Combo = { industry: string; func: string };
+
+const COMBOS: Combo[] = [
+  { industry: "Financial Services", func: "Finance" },
+  { industry: "Private Equity", func: "Legal" },
+  { industry: "Technology", func: "Data & AI" },
+  { industry: "Consumer", func: "Marketing" },
+  { industry: "Industrials", func: "Procurement" },
+  { industry: "Healthcare", func: "HR" },
+  { industry: "Professional Services", func: "Sales" },
+];
+
+const ROTATE_MS = 4500;
 
 /* ------------------------ ontology ribbon ----------------------- */
 /*
@@ -336,11 +351,64 @@ const fade = {
 };
 const ease = [0.16, 1, 0.3, 1] as const;
 
+interface ChipProps {
+  value: string;
+  ariaLabel: string;
+}
+
+const Chip = ({ value, ariaLabel }: ChipProps) => {
+  return (
+    <span
+      role="text"
+      aria-label={`${ariaLabel}: ${value}`}
+      aria-live="polite"
+      className={cn(
+        "relative inline-flex items-baseline align-baseline",
+        "px-1 -mx-1 text-foreground",
+      )}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-1 -bottom-0.5 h-px bg-foreground/30"
+        style={{
+          backgroundImage: "linear-gradient(to right, currentColor 60%, transparent 0)",
+          backgroundSize: "5px 1px",
+          backgroundRepeat: "repeat-x",
+        }}
+      />
+      <span className="relative inline-block">
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.span
+            key={value}
+            initial={{ y: "0.5em", opacity: 0, filter: "blur(6px)" }}
+            animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
+            exit={{ y: "-0.5em", opacity: 0, filter: "blur(6px)" }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="inline-block whitespace-nowrap"
+          >
+            {value}
+          </motion.span>
+        </AnimatePresence>
+      </span>
+    </span>
+  );
+};
+
 // Sonar pulse fires once on mount so the ribbon visibly "wakes up" when the
 // landing screen renders. No auto-rotation in presentation mode — selection
 // happens explicitly on the next screen.
 const Hero = () => {
-  const pulseKey = 1;
+  const [comboIndex, setComboIndex] = useState(0);
+  const [pulseKey, setPulseKey] = useState(0);
+  const combo: Combo = COMBOS[comboIndex];
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setComboIndex((i) => (i + 1) % COMBOS.length);
+      setPulseKey((k) => k + 1);
+    }, ROTATE_MS);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
     <section className="dark relative isolate min-h-screen w-full overflow-hidden bg-background text-foreground">
@@ -435,13 +503,13 @@ const Hero = () => {
             className="text-balance text-[2.6rem] font-bold leading-[1.02] tracking-[-0.025em] text-foreground sm:text-5xl md:text-6xl lg:text-[4.4rem] xl:text-[5rem]"
           >
             <span className="block">
-              The
-              <span> </span>
-              <CanvasText>expert</CanvasText>
-              <span> platform</span>
+              <CanvasText>Expert</CanvasText>
+              <span> AI for</span>
             </span>
-            <span className="mt-2 block leading-[1.1] text-foreground">
-              for advisory work.
+            <span className="mt-2 block leading-[1.1]">
+              <Chip value={combo.industry} ariaLabel="Industry" />{" "}
+              <Chip value={combo.func} ariaLabel="Function" />
+              <span className="text-foreground">.</span>
             </span>
           </motion.h1>
 

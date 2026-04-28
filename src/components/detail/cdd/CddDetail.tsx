@@ -30,6 +30,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AGENT_RUN_LOG,
+  CDD_DATAROOM_FILES,
   CDD_META,
   CDD_TARGET,
   COMPETITORS,
@@ -41,6 +42,7 @@ import {
 } from "@/data/cdd";
 import { useAppState } from "@/components/shell/AppStateContext";
 import { cn } from "@/lib/utils";
+import CddDataroomPanel from "./CddDataroomPanel";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -91,48 +93,52 @@ const CddDetail = () => {
           </div>
         </div>
 
-        <div className="hidden items-center gap-2 text-[11px] text-foreground/55 md:flex">
+        <div className="hidden items-center gap-2 text-[11px] text-foreground/55 xl:flex">
           <Clock className="h-3 w-3 text-foreground/45" strokeWidth={1.8} />
-          {CDD_META.completedAgo}
+          Completed 3h ago
           <span className="text-foreground/20">·</span>
           <Database className="h-3 w-3 text-foreground/45" strokeWidth={1.8} />
-          {CDD_META.sourcesReviewed}
+          {CDD_DATAROOM_FILES.length} docs reviewed
         </div>
       </motion.div>
 
-      <main className="mx-auto w-full max-w-[1280px] flex-1 px-6 py-8 lg:px-10">
-        <ProfileCard />
+      <div className="flex flex-1">
+        <main className="mx-auto w-full max-w-[1280px] min-w-0 flex-1 px-6 py-8 lg:px-10">
+          <ProfileCard />
 
-        <div className="mt-9">
-          <Tabs defaultValue="market" className="w-full">
-            <TabsList className="bg-white/[0.025] border border-white/[0.06] backdrop-blur-md">
-              <TabsTrigger value="market">Market sizing</TabsTrigger>
-              <TabsTrigger value="competitors">Competitive landscape</TabsTrigger>
-              <TabsTrigger value="concentration">Customer concentration</TabsTrigger>
-              <TabsTrigger value="growth">Growth drivers</TabsTrigger>
-              <TabsTrigger value="flags">Red flags</TabsTrigger>
-            </TabsList>
+          <div className="mt-9">
+            <Tabs defaultValue="market" className="w-full">
+              <TabsList className="bg-white/[0.025] border border-white/[0.06] backdrop-blur-md">
+                <TabsTrigger value="market">Market sizing</TabsTrigger>
+                <TabsTrigger value="competitors">Competitive landscape</TabsTrigger>
+                <TabsTrigger value="concentration">Customer concentration</TabsTrigger>
+                <TabsTrigger value="growth">Growth drivers</TabsTrigger>
+                <TabsTrigger value="flags">Red flags</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="market" className="mt-6">
-              <MarketSizingTab />
-            </TabsContent>
-            <TabsContent value="competitors" className="mt-6">
-              <CompetitorsTab />
-            </TabsContent>
-            <TabsContent value="concentration" className="mt-6">
-              <ConcentrationTab />
-            </TabsContent>
-            <TabsContent value="growth" className="mt-6">
-              <GrowthTab />
-            </TabsContent>
-            <TabsContent value="flags" className="mt-6">
-              <FlagsTab />
-            </TabsContent>
-          </Tabs>
-        </div>
+              <TabsContent value="market" className="mt-6">
+                <MarketSizingTab />
+              </TabsContent>
+              <TabsContent value="competitors" className="mt-6">
+                <CompetitorsTab />
+              </TabsContent>
+              <TabsContent value="concentration" className="mt-6">
+                <ConcentrationTab />
+              </TabsContent>
+              <TabsContent value="growth" className="mt-6">
+                <GrowthTab />
+              </TabsContent>
+              <TabsContent value="flags" className="mt-6">
+                <FlagsTab />
+              </TabsContent>
+            </Tabs>
+          </div>
 
-        <AgentLog open={logOpen} onToggle={() => setLogOpen((v) => !v)} />
-      </main>
+          <AgentLog open={logOpen} onToggle={() => setLogOpen((v) => !v)} />
+        </main>
+
+        <CddDataroomPanel />
+      </div>
     </div>
   );
 };

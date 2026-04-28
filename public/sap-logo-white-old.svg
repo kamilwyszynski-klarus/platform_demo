@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 743.37 368.44" role="img" aria-labelledby="title">
+  <title id="title">SAP logo - white</title>
+  <defs>
+    <mask id="sap-knockout">
+      <rect width="743.37" height="368.44" fill="white"/>
+      <text x="72" y="273" fill="black" font-family="Arial Black, Helvetica, Arial, sans-serif" font-size="250" font-style="italic" font-weight="900" letter-spacing="-28">SAP</text>
+    </mask>
+  </defs>
+  <path fill="#fff" mask="url(#sap-knockout)" d="M0 0h743.37L520.9 368.44H0z"/>
+</svg>

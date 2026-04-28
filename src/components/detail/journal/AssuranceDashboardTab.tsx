@@ -1,12 +1,27 @@
 import { motion } from "framer-motion";
-import { FileDown, Download, ShieldCheck } from "lucide-react";
+import { FileDown, Download, ShieldCheck, MoonStar } from "lucide-react";
+import { Fragment } from "react";
 import { DASHBOARD, type EvidenceRow } from "@/data/journal";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
+/** Map an exception count to a graduated background colour: cool/neutral at
+ *  zero, sage at low values, amber mid, rose hot. Hue interpolates smoothly
+ *  from sage (140°) down through amber (35°) to rose (0°). */
+const heatColour = (count: number, maxCount: number) => {
+  if (count === 0) return "hsla(220, 15%, 60%, 0.05)";
+  const t = Math.min(1, count / maxCount);
+  const hue = 140 - t * 140;
+  const sat = 22 + t * 55;
+  const alpha = 0.18 + t * 0.5;
+  return `hsla(${hue}, ${sat}%, 60%, ${alpha})`;
+};
+
 const AssuranceDashboardTab = () => {
   const maxBar = Math.max(...DASHBOARD.assertionCounts.map((a) => a.count));
+  const heatmap = DASHBOARD.heatmap;
+  const maxCount = Math.max(...heatmap.counts.flat());
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-6 py-6 lg:px-10">
@@ -94,65 +109,107 @@ const AssuranceDashboardTab = () => {
           </ul>
         </motion.div>
 
-        {/* Risk concentration heat-map */}
+        {/* Risk concentration heat-map — Posted by × GL Category */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: EASE, delay: 0.3 }}
           className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4"
         >
-          <div className="text-[10px] font-medium uppercase tracking-[0.22em] text-foreground/40">
-            Risk concentration
-          </div>
-          <div className="text-[12px] tracking-tight text-foreground/55">
-            heat-map · user × GL account × posting time
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-medium uppercase tracking-[0.22em] text-foreground/40">
+                Risk concentration
+              </div>
+              <div className="text-[12px] tracking-tight text-foreground/55">
+                Posted by × GL Category · this quarter
+              </div>
+            </div>
+
+            {/* After-hours stat callout — replaces posting time as a grid axis. */}
+            <div className="flex items-center gap-2 rounded-lg border border-amber-300/25 bg-amber-300/[0.06] px-2.5 py-1.5">
+              <MoonStar className="h-3.5 w-3.5 text-amber-200/85" strokeWidth={1.6} />
+              <div className="leading-tight">
+                <div className="text-[16px] font-semibold tabular-nums tracking-tight text-amber-100">
+                  {DASHBOARD.afterHoursPostings}
+                </div>
+                <div className="text-[9.5px] font-medium uppercase tracking-[0.16em] text-amber-200/75">
+                  After-hours postings
+                </div>
+              </div>
+            </div>
           </div>
 
+          {/* Heat-map grid: row labels (users) on the left, column labels
+           *  (GL categories) on top, exception counts inside each cell. */}
           <div
             className="mt-4 grid gap-1"
-            style={{ gridTemplateColumns: `repeat(${DASHBOARD.heatmap.cols}, minmax(0, 1fr))` }}
-            aria-hidden
+            style={{
+              gridTemplateColumns: `minmax(72px, auto) repeat(${heatmap.categories.length}, minmax(0, 1fr))`,
+            }}
           >
-            {DASHBOARD.heatmap.cells.map((intensity, idx) => {
-              const isHotspot = idx === DASHBOARD.heatmap.hotspotIndex;
-              return (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.35, ease: EASE, delay: 0.4 + idx * 0.012 }}
-                  className={cn(
-                    "aspect-square rounded-sm",
-                    isHotspot && "ring-1 ring-rose-400/70 shadow-[0_0_16px_rgba(251,113,133,0.35)]",
-                  )}
-                  style={{
-                    backgroundColor: isHotspot
-                      ? `rgba(244, 113, 113, ${0.15 + intensity * 0.65})`
-                      : `hsla(140, 22%, 60%, ${0.05 + intensity * 0.45})`,
-                  }}
-                />
-              );
-            })}
+            {/* Top-left corner spacer */}
+            <div aria-hidden />
+            {/* Column header — GL Category names */}
+            {heatmap.categories.map((cat) => (
+              <div
+                key={`col-${cat}`}
+                className="px-1 pb-1 text-center text-[9.5px] font-medium uppercase tracking-[0.14em] text-foreground/45"
+              >
+                {cat}
+              </div>
+            ))}
+
+            {/* Rows — one per user */}
+            {heatmap.users.map((user, r) => (
+              <Fragment key={user}>
+                <div className="flex items-center pr-2 text-[11px] tracking-tight text-foreground/70">
+                  {user}
+                </div>
+                {heatmap.counts[r].map((count, c) => {
+                  const idx = r * heatmap.categories.length + c;
+                  return (
+                    <motion.div
+                      key={`${user}-${heatmap.categories[c]}`}
+                      initial={{ opacity: 0, scale: 0.85 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.35, ease: EASE, delay: 0.4 + idx * 0.02 }}
+                      className="flex aspect-square items-center justify-center rounded-sm text-[12px] font-medium tabular-nums tracking-tight text-foreground/90"
+                      style={{ backgroundColor: heatColour(count, maxCount) }}
+                      aria-label={`${user} · ${heatmap.categories[c]} · ${count} exception${count === 1 ? "" : "s"}`}
+                    >
+                      {count > 0 ? count : <span className="text-foreground/20">·</span>}
+                    </motion.div>
+                  );
+                })}
+              </Fragment>
+            ))}
           </div>
 
-          <div className="mt-3 flex items-center justify-between text-[10.5px] tracking-tight text-foreground/40">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: "hsla(140, 22%, 60%, 0.12)" }} />
-                low
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: "hsla(140, 22%, 60%, 0.45)" }} />
-                medium
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: "rgba(244, 113, 113, 0.55)" }} />
-                hotspot
-              </span>
-            </div>
-            <span className="text-rose-200/80">
-              T.Banks · provisions · after-hours
+          {/* Axis labels + colour scale */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10.5px] tracking-tight text-foreground/40">
+            <span>
+              <span className="text-foreground/55">Posted by</span>
+              {" — "}
+              <span className="text-foreground/55">GL Category</span>
             </span>
+            <div className="flex items-center gap-2">
+              <span>low</span>
+              <div className="flex h-2 w-32 overflow-hidden rounded-sm">
+                {[0, 1, 2, 3, 4, 5, 6].map((n) => (
+                  <span
+                    key={n}
+                    className="flex-1"
+                    style={{ backgroundColor: heatColour(n, 6) }}
+                  />
+                ))}
+              </div>
+              <span>hot</span>
+            </div>
+          </div>
+
+          <div className="mt-2 text-[10.5px] tracking-tight text-rose-200/80">
+            M.Patel · concentrated in Intercompany &amp; FX
           </div>
         </motion.div>
       </div>

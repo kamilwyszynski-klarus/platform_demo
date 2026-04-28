@@ -17,10 +17,22 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 
 /** Total reveals for the scripted "pop in 3 extras then idle" cadence (Q4). */
 const REVEAL_COUNT = 3;
-/** Delay before the first new "testing" row appears. */
-const FIRST_REVEAL_DELAY_MS = 5_500;
-/** Spacing between subsequent reveals. */
-const SUBSEQUENT_REVEAL_DELAY_MS = 5_000;
+/** Delay before the first new "testing" row appears (slowed for demo cadence). */
+const FIRST_REVEAL_DELAY_MS = 8_000;
+/** Spacing between subsequent reveals (slowed for demo cadence). */
+const SUBSEQUENT_REVEAL_DELAY_MS = 7_500;
+/** Time the previous "testing" row stays in flight after a new testing row
+ *  pops in on top — long enough for the viewer to see two journals processing
+ *  in parallel, short enough that the queue clears between reveals. */
+const RESOLVE_DELAY_MS = 3_000;
+/** Hard cap on rows shown in the feed; older entries collapse behind "Show more". */
+const MAX_VISIBLE_ROWS = 10;
+
+/** Module-level so the scripted cadence keeps advancing across tab unmounts.
+ *  We intentionally do not reset these on remount — once a journal has appeared
+ *  (or resolved) it stays put, and the timers resume from wherever they left off. */
+let persistedRevealCount = 0;
+let persistedResolvedCount = 0;
 
 interface Props {
   onOpenJournal: (jeId: string) => void;
@@ -41,45 +53,78 @@ const STATUS_PILL: Record<FeedStatus, string> = {
     "border-amber-300/40 bg-amber-300/[0.10] text-amber-200",
   flagged:
     "border-rose-400/40 bg-rose-400/[0.10] text-rose-200",
+  /* Neutral grey — clearly "in progress", not "passed". */
   testing:
-    "border-primary-glow/35 bg-primary-glow/[0.06] text-primary-glow/85",
+    "border-white/20 bg-white/[0.04] text-foreground/70",
 };
 
 const STATUS_LABEL: Record<FeedStatus, string> = {
   passed: "passed",
   review: "review",
   flagged: "flagged",
-  testing: "· · · testing",
+  testing: "testing",
 };
 
-const LiveFeedTab = ({ onOpenJournal, onJumpToTab }: Props) => {
-  /** revealCount is how many of the FILLER_POOL entries have been promoted in.
-   *  - revealCount === 0 → topRow = FEED_INITIAL_TESTING (testing), history = FEED_HISTORY
-   *  - revealCount === 1 → topRow = pool[0] (testing), history prepended with FEED_INITIAL_TESTING-as-passed
-   *  - …
-   *  After REVEAL_COUNT it stops; the topRow stays in testing forever. */
-  const [revealCount, setRevealCount] = useState(0);
+/** The full testing-then-passed sequence, oldest-first. Indexed by revealCount /
+ *  resolvedCount: index 0 is FEED_INITIAL_TESTING, then each filler in order. */
+const TESTING_SEQUENCE: FeedRow[] = [FEED_INITIAL_TESTING, ...FEED_FILLER_POOL];
 
+const LiveFeedTab = ({ onOpenJournal, onJumpToTab }: Props) => {
+  /** revealCount   — how many fillers (0..REVEAL_COUNT) have popped in on top.
+   *  resolvedCount — how many of the testing rows (0..REVEAL_COUNT+1) have
+   *                   resolved to "passed". Lags revealCount by RESOLVE_DELAY_MS
+   *                   so the previous and the new testing rows briefly coexist.
+   *  Both hydrate from module-level vars so tab switches don't replay. */
+  const [revealCount, setRevealCount] = useState(persistedRevealCount);
+  const [resolvedCount, setResolvedCount] = useState(persistedResolvedCount);
+
+  /* Reveal timer — pops a new testing row on top. */
   useEffect(() => {
     if (revealCount >= REVEAL_COUNT) return;
     const delay = revealCount === 0 ? FIRST_REVEAL_DELAY_MS : SUBSEQUENT_REVEAL_DELAY_MS;
-    const t = window.setTimeout(() => setRevealCount((c) => c + 1), delay);
+    const t = window.setTimeout(() => {
+      setRevealCount((c) => {
+        const next = c + 1;
+        persistedRevealCount = next;
+        return next;
+      });
+    }, delay);
     return () => window.clearTimeout(t);
   }, [revealCount]);
 
-  /* Build the visible row sequence. */
-  const topRow: FeedRow =
-    revealCount === 0 ? FEED_INITIAL_TESTING : FEED_FILLER_POOL[revealCount - 1];
+  /* Resolve timer — promotes the oldest still-testing row to "passed".
+   *  Target lags reveal by 1 normally; after the final reveal it advances one
+   *  more step so the last testing row also resolves (no indefinite spinner). */
+  useEffect(() => {
+    const targetResolved =
+      revealCount === REVEAL_COUNT ? REVEAL_COUNT + 1 : revealCount;
+    if (resolvedCount >= targetResolved) return;
+    const t = window.setTimeout(() => {
+      setResolvedCount((c) => {
+        const next = c + 1;
+        persistedResolvedCount = next;
+        return next;
+      });
+    }, RESOLVE_DELAY_MS);
+    return () => window.clearTimeout(t);
+  }, [revealCount, resolvedCount]);
 
-  /* The previously-testing rows that have already resolved to "passed". They
-   * sit between topRow and FEED_HISTORY, newest first. */
-  const resolvedRows: FeedRow[] = [];
-  if (revealCount >= 1) {
-    resolvedRows.push({ ...FEED_INITIAL_TESTING, status: "passed" });
+  /* Build the visible feed top — newest first. Rows with index < resolvedCount
+   * are passed; the rest are still testing. There can be 1 or 2 testing rows
+   * at any moment depending on overlap timing. */
+  const feedTop: FeedRow[] = [];
+  for (let i = revealCount; i >= 0; i--) {
+    feedTop.push({
+      ...TESTING_SEQUENCE[i],
+      status: i < resolvedCount ? "passed" : "testing",
+    });
   }
-  for (let i = 0; i < revealCount - 1; i++) {
-    resolvedRows.unshift({ ...FEED_FILLER_POOL[i], status: "passed" });
-  }
+  const inFlightCount = feedTop.filter((r) => r.status === "testing").length;
+  const newlyTestedCount = feedTop.length - inFlightCount;
+
+  const allRows = [...feedTop, ...FEED_HISTORY];
+  const visibleRows = allRows.slice(0, MAX_VISIBLE_ROWS);
+  const hasOverflow = allRows.length > MAX_VISIBLE_ROWS;
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-6 py-6 lg:px-10">
@@ -121,34 +166,43 @@ const LiveFeedTab = ({ onOpenJournal, onJumpToTab }: Props) => {
           <div className="flex items-baseline justify-between">
             <div className="flex items-center gap-2">
               <Activity className="h-3.5 w-3.5 text-primary-glow" strokeWidth={1.6} />
-              <h2 className="text-[10px] font-medium uppercase tracking-[0.22em] text-foreground/45">
-                Live feed
+              <h2 className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-foreground/45">
+                <img
+                  src="/sap-logo-white.svg"
+                  alt="SAP"
+                  className="h-3 w-auto opacity-60"
+                />
+                <span aria-hidden className="text-foreground/25">·</span>
+                <span>Live feed</span>
               </h2>
             </div>
             <span className="text-[10.5px] tabular-nums text-foreground/35">
-              {resolvedRows.length + FEED_HISTORY.length} tested · 1 in flight
+              {newlyTestedCount + FEED_HISTORY.length} tested · {inFlightCount} in flight
             </span>
           </div>
 
           <div className="flex flex-col divide-y divide-white/[0.04] overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.015]">
-            <FeedRowItem row={topRow} index={0} onOpen={onOpenJournal} />
-            {resolvedRows.map((row, i) => (
+            {visibleRows.map((row, i) => (
               <FeedRowItem
                 key={row.id}
                 row={row}
-                index={i + 1}
-                onOpen={onOpenJournal}
-              />
-            ))}
-            {FEED_HISTORY.map((row, i) => (
-              <FeedRowItem
-                key={row.id}
-                row={row}
-                index={resolvedRows.length + 1 + i}
+                index={i}
                 onOpen={onOpenJournal}
               />
             ))}
           </div>
+
+          {hasOverflow && (
+            <button
+              type="button"
+              className="mt-1 inline-flex items-center justify-center gap-1.5 self-center rounded-full border border-white/10 bg-white/[0.025] px-4 py-1.5 text-[11px] font-medium tracking-tight text-foreground/65 transition-colors hover:border-white/25 hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-glow/60"
+            >
+              Show more
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+                <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
         </motion.div>
 
         {/* Right: risk-engine rail */}
@@ -188,7 +242,7 @@ const LiveFeedTab = ({ onOpenJournal, onJumpToTab }: Props) => {
           <button
             type="button"
             onClick={() => onJumpToTab("exceptions")}
-            className="mt-1 inline-flex items-center justify-between rounded-2xl border border-amber-300/25 bg-amber-300/[0.06] px-3 py-2.5 text-left text-[11.5px] font-medium tracking-tight text-amber-200 transition-colors hover:border-amber-300/45 hover:bg-amber-300/[0.10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
+            className="mt-1 inline-flex items-center justify-between rounded-2xl border border-amber-300/25 bg-amber-300/[0.06] px-3 py-2.5 text-left text-[11.5px] font-medium tracking-tight text-amber-200 transition-colors hover:border-amber-300/45 hover:bg-amber-300/[0.10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-glow/60"
           >
             <span className="flex flex-col gap-0.5">
               <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-amber-200/70">
@@ -212,7 +266,9 @@ interface FeedRowProps {
 
 const FeedRowItem = ({ row, index, onOpen }: FeedRowProps) => {
   const isTesting = row.status === "testing";
-  const isClickable = !isTesting && DETAIL_EXAMPLES[row.id] != null;
+  /* Every row in the feed is now clickable — DETAIL_EXAMPLES has a stub for
+   * each JE-id. The DETAIL_EXAMPLES check stays as a defensive guard. */
+  const isClickable = DETAIL_EXAMPLES[row.id] != null;
 
   return (
     <motion.button
@@ -224,8 +280,8 @@ const FeedRowItem = ({ row, index, onOpen }: FeedRowProps) => {
       transition={{ duration: 0.4, ease: EASE, delay: Math.min(index * 0.04, 0.4) }}
       className={cn(
         "group flex w-full items-center gap-4 px-4 py-3 text-left transition-colors duration-200",
-        isTesting && "cursor-default bg-primary/[0.04]",
-        !isTesting && !isClickable && "cursor-default",
+        isTesting && "bg-primary/[0.04]",
+        !isClickable && "cursor-default",
         isClickable &&
           "hover:bg-white/[0.03] focus-visible:outline-none focus-visible:bg-white/[0.04]",
       )}
@@ -271,17 +327,17 @@ const StatusPill = ({ status }: { status: FeedStatus }) => {
   return (
     <span
       className={cn(
-        "relative inline-flex w-[88px] flex-shrink-0 items-center justify-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.16em]",
+        "inline-flex w-[88px] flex-shrink-0 items-center justify-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.16em]",
         STATUS_PILL[status],
       )}
     >
       {isTesting && (
-        <span className="absolute -left-1 flex h-1.5 w-1.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-glow/70 opacity-60" />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary-glow/85" />
+        <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground/55 opacity-70" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-foreground/75" />
         </span>
       )}
-      <span className={cn(isTesting && "ml-2")}>{STATUS_LABEL[status]}</span>
+      <span>{STATUS_LABEL[status]}</span>
     </span>
   );
 };

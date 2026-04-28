@@ -266,12 +266,12 @@ export interface AssertionCount {
 }
 
 export interface DashboardHeatmap {
-  rows: number;
-  cols: number;
-  /** Intensities 0..1, row-major. Length must equal rows * cols. */
-  cells: number[];
-  /** 0-based index of the standout cell — rendered with amber/red emphasis. */
-  hotspotIndex: number;
+  /** Y-axis labels — posting users, top-to-bottom. */
+  users: string[];
+  /** X-axis labels — GL account categories, left-to-right. */
+  categories: string[];
+  /** Exception count for users[r] × categories[c]. counts[r][c]. */
+  counts: number[][];
 }
 
 export interface EvidenceRow {
@@ -296,19 +296,23 @@ export const DASHBOARD = {
     { label: "Evidence gap", count: 5 },
     { label: "Threshold", count: 3 },
   ] satisfies AssertionCount[],
+  /** Posting-time concentration replaced posting-time as a grid axis with a
+   *  single callout — see `afterHoursPostings` below. */
   heatmap: {
-    rows: 4,
-    cols: 8,
-    /* Mostly low-intensity cells, with one standout at index 18 (row 2, col 2)
-     * representing a user × GL × posting-time concentration. */
-    cells: [
-      0.06, 0.12, 0.08, 0.14, 0.04, 0.02, 0.07, 0.05,
-      0.14, 0.20, 0.24, 0.30, 0.18, 0.10, 0.12, 0.16,
-      0.10, 0.18, 0.95, 0.42, 0.22, 0.10, 0.20, 0.06,
-      0.04, 0.10, 0.14, 0.10, 0.08, 0.05, 0.06, 0.04,
+    users: ["M.Patel", "S.Holloway", "T.Banks", "M.Ofori"],
+    categories: ["Accruals", "Intercompany", "Provisions", "Payroll", "Capex", "FX"],
+    /* Exception counts. Story: M.Patel concentrates exceptions in Intercompany
+     * + FX (the JE-2846 currency-mismatch pattern); T.Banks lights up Provisions
+     * (after-hours / round-number behaviour); the rest stay quiet. */
+    counts: [
+      [1, 5, 0, 0, 0, 6],
+      [3, 1, 0, 2, 1, 0],
+      [0, 1, 4, 1, 1, 0],
+      [2, 0, 1, 0, 0, 1],
     ],
-    hotspotIndex: 18,
   } satisfies DashboardHeatmap,
+  /** Single stat callout that replaces posting time as a grid dimension. */
+  afterHoursPostings: 4,
   evidenceStore: [
     { id: "JE-2847", status: "passed", artefactCount: 3, decision: "auto", timestamp: "14:32 28/04" },
     { id: "JE-2846", status: "review", artefactCount: 3, decision: "M.Patel override", timestamp: "14:28 28/04" },
@@ -706,4 +710,144 @@ export const DETAIL_EXAMPLES: Record<string, JournalDetailExample> = {
     ],
     proposedAction: "Auto-pass",
   },
+
+  /* ---------- additional passed-history stubs (every feed row is clickable) -- */
+  ...buildPassedStubs(),
 };
+
+/** Compact "passed · all checks" detail records for the rest of the live-feed
+ *  rows — JE-2848 → JE-2851 (testing pool, resolve to passed) and the older
+ *  history rows. Mirrors the FEED_INITIAL_TESTING / FEED_FILLER_POOL / FEED_HISTORY
+ *  fields so every click in the live feed lands on a populated popup. */
+function buildPassedStubs(): Record<string, JournalDetailExample> {
+  const stubs: Array<{
+    row: FeedRow;
+    drAccount: string;
+    crAccount: string;
+    evidence: EvidenceArtefact[];
+  }> = [
+    {
+      row: FEED_INITIAL_TESTING,
+      drAccount: "6500 Bank charges",
+      crAccount: "1010 Bank — operating",
+      evidence: [
+        { filename: "bank-statement-apr.pdf", subtitle: "auto-fetched · 28 Apr" },
+        { filename: "rec-summary.xlsx", subtitle: "GL ↔ bank · matched" },
+      ],
+    },
+    {
+      row: FEED_FILLER_POOL[0],
+      drAccount: "6700 Marketing — agency",
+      crAccount: "1100 Trade payables",
+      evidence: [
+        { filename: "pr-retainer-invoice.pdf", subtitle: "supplier · 27 Apr" },
+      ],
+    },
+    {
+      row: FEED_FILLER_POOL[1],
+      drAccount: "6900 Office supplies",
+      crAccount: "1100 Trade payables",
+      evidence: [
+        { filename: "supplies-receipt.pdf", subtitle: "supplier · 28 Apr" },
+      ],
+    },
+    {
+      row: FEED_FILLER_POOL[2],
+      drAccount: "6100 Compensation — variable",
+      crAccount: "2400 Accrued liabilities",
+      evidence: [
+        { filename: "bonus-restatement-fy25.xlsx", subtitle: "T.Banks · 28 Apr" },
+        { filename: "comp-committee-note.pdf", subtitle: "approved · 28 Apr" },
+      ],
+    },
+    {
+      row: FEED_HISTORY[3] /* JE-2844 */,
+      drAccount: "6100 Compensation — agency",
+      crAccount: "1100 Trade payables",
+      evidence: [
+        { filename: "agency-invoice-w53.pdf", subtitle: "supplier · 22 Apr" },
+      ],
+    },
+    {
+      row: FEED_HISTORY[4] /* JE-2843 */,
+      drAccount: "6800 IT licences",
+      crAccount: "1100 Trade payables",
+      evidence: [
+        { filename: "licence-true-up.pdf", subtitle: "vendor · 18 Apr" },
+      ],
+    },
+    {
+      row: FEED_HISTORY[5] /* JE-2842 */,
+      drAccount: "1200 Inventory — finished goods",
+      crAccount: "1100 Trade payables",
+      evidence: [
+        { filename: "freight-invoice.pdf", subtitle: "carrier · 14 Apr" },
+        { filename: "capitalisation-memo.docx", subtitle: "M.Ofori · 14 Apr" },
+      ],
+    },
+    {
+      row: FEED_HISTORY[6] /* JE-2841 */,
+      drAccount: "6700 Marketing — retainer",
+      crAccount: "1100 Trade payables",
+      evidence: [
+        { filename: "marketing-retainer-dec.pdf", subtitle: "supplier · 09 Apr" },
+      ],
+    },
+    {
+      row: FEED_HISTORY[7] /* JE-2840 */,
+      drAccount: "5000 COGS — Northbrook",
+      crAccount: "2400 Accrued liabilities",
+      evidence: [
+        { filename: "cogs-distribution.xlsx", subtitle: "auto-generated · 04 Apr" },
+      ],
+    },
+  ];
+
+  return stubs.reduce<Record<string, JournalDetailExample>>((acc, stub) => {
+    acc[stub.row.id] = {
+      id: stub.row.id,
+      narrative: stub.row.narrative,
+      amountGbp: stub.row.amountGbp,
+      currency: "GBP",
+      user: stub.row.user,
+      time: stub.row.time,
+      date: "28 Apr 2026",
+      postedDate: `28/04/2026 ${stub.row.time}`,
+      verdict: { tone: "passed", label: "passed · all checks" },
+      glLines: [
+        { side: "Dr", account: stub.drAccount, currency: "GBP", amount: stub.row.amountGbp },
+        { side: "Cr", account: stub.crAccount, currency: "GBP", amount: stub.row.amountGbp },
+      ],
+      evidence: stub.evidence,
+      riskSteps: [
+        {
+          verdict: "pass",
+          assertion: "Authorisation",
+          justification: `${stub.row.user} is on the approval matrix for this account.`,
+        },
+        {
+          verdict: "pass",
+          assertion: "Threshold",
+          justification: "Within auto-approve band for the GL category.",
+        },
+        {
+          verdict: "pass",
+          assertion: "Period cut-off",
+          justification: "Within Q1 close window.",
+        },
+        {
+          verdict: "pass",
+          assertion: "Evidence sufficiency",
+          justification: `${stub.evidence.length} artefact${stub.evidence.length === 1 ? "" : "s"} matched.`,
+        },
+        {
+          verdict: "pass",
+          assertion: "Frequency anomaly",
+          justification: "Within user's normal cadence for this category.",
+        },
+      ],
+      proposedAction: "Auto-pass",
+    };
+    return acc;
+  }, {});
+}

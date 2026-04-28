@@ -101,8 +101,9 @@ const InvoiceDetail = () => {
     setDocuments((prev) => [next, ...prev]);
     setActiveId(next.id);
     setUploadOpen(false);
-    setRunModes((prev) => ({ ...prev, [next.id]: "frozen" }));
-    setRunKeys((prev) => ({ ...prev, [next.id]: prev[next.id] ?? 0 }));
+    // New uploads should replay the live agent stream once, then freeze.
+    setRunModes((prev) => ({ ...prev, [next.id]: "live" }));
+    setRunKeys((prev) => ({ ...prev, [next.id]: (prev[next.id] ?? 0) + 1 }));
   };
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
